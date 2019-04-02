@@ -2,30 +2,92 @@
 
 {% block title %}首页{% endblock %}
 
+{% block head %}
+<style type="text/css">
+    /*
+    .carousel{
+     background-color: #000000;
+    }
+    .carousel .item{
+     max-height: 360px;
+     background-color: #000000;
+    }
+    */
+    .carousel img{
+     height: 320px;
+     //width: 100%;
+    }
+blockquote {
+    display: block;
+    border-left: 8px solid #d0e5f2;
+    padding: 5px 10px;
+    margin: 10px 0;
+    line-height: 1.4;
+    font-size: 100%;
+    background-color: #f1f1f1;
+}
+</style>
+{% endblock %}
+
+ {% block notice %}
+            <marquee direction="left" scrollamount="5" bgcolor="#FFFFFF">
+                {% for notice in g.api.get_sys_notice().data %}
+                <i class="icon-bullhorn"></i>&nbsp;{{ notice.msg|safe }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                {% endfor %}
+            </marquee>
+ {% endblock %}
+
 {% block PathNavigation %}
 			<ul class="breadcrumb">
 				<li class="active">
-					 <a href="{{ url_for('front.index') }}">首页</a>
+					当前位置：<a href="{{ url_for('front.index') }}">首页</a>
 				</li>
 			</ul>
 {% endblock %}
 
+{% block AlternateDiagram %}
+            {%- set banners = g.api.get_banner().data %}
+            <div class="carousel slide" id="carousel-394119">
+                <ol class="carousel-indicators">
+                    {%- for banner in banners %}
+                    <li data-slide-to="{{ loop.index0 }}" data-target="#carousel-394119"{% if banner.isActive %} class="active"{% endif %}></li>
+                    {%- endfor %}
+                </ol>
+                <div class="carousel-inner">
+                    {%- for banner in banners %}
+                    <div class="item{% if banner.isActive %} active{% endif %}">
+                        <a href="{{ url_for('front.blogShow', bid=banner.id) }}"><img src="{{ banner.imgUrl }}" width="1600px" height="320px"  /></a>
+                        <div class="carousel-caption">
+                            <p>{{ banner.title }}</p>
+                        </div>
+                    </div>
+                    {%- endfor %}
+                </div>
+                <a class="left carousel-control" href="#carousel-394119" data-slide="prev">
+                    <span class="glyphicon glyphicon-chevron-left"></span>
+                </a>
+                <a class="right carousel-control" href="#carousel-394119" data-slide="next">
+                    <span class="glyphicon glyphicon-chevron-right"></span>
+                </a>
+            </div>
+{% endblock %}
+
 {% block container %}
             <!-- 置顶文章列表 -->
-			<div class="row clearfix">
-				<div class="col-md-12 column">
-				    <h3><scan class="icon-fire icon-large"> 置顶文章</scan></h3>
-				    <ol>
+            <div class="row clearfix">
+                <div class="col-md-12 column">
+                    <h3>置顶文章</h3>
+                    <ul class="list-unstyled">
                     {% for blog in g.api.blog_get_top_data().data %}
-			            <li><a href="{{ url_for('front.blogShow', bid=blog.id) }}">{{ blog.title }}</a></li>
+                        <li><a href="{{ url_for('front.blogShow', bid=blog.id) }}">{{ blog.title }}</a></li>
                     {% endfor %}
-                    </ol>
-				</div>
-			</div>
-
+                    </ul>
+                </div>
+            </div>
             <!-- 文章列表缩略 -->
-            <h3><scan class="icon-book icon-large"> 最新文章</scan></h3>
-            {% set blogs = g.api.blog_get_single_index(page=request.args.get("page", 0), length=request.args.get("length", 6)) %}
+            <h3>最新文章</h3>
+            {% set blogs = g.api.blog_get_single_index(page=request.args.get("page", 0), length=request.args.get("length", 8)) %}
+            {% if blogs.data %}
             <blockquote>
             {% for blog in blogs.data %}
 			<div class="row clearfix">
@@ -34,9 +96,9 @@
 						<a href="{{ url_for('front.blogShow', bid=blog.id) }}" style="color: blue; font-weight: bold;">{{ blog.title }}</a>
 					</h4>
 					<h5>
-					    {% if blog.author %}
-					    <small><i class="icon-user icon-1x"></i><a href="{{ url_for('front.userHome', user=blog.author) }}" title="由 {{ blog.author }} 发布" style="color: #999">&nbsp;{{ blog.author }}</a>&nbsp;</small>
-					    {% endif %}
+					    {#
+					    <small><i class="icon-user icon-1x"></i><a href="{{ url_for('front.userGo', uid=blog.author) }}" style="color: #999">&nbsp;作者主页</a>&nbsp;</small>
+					    #}
 
                         {% if blog.catalog %}
 					    <small><i class="icon-folder-open icon-1x"></i><a href="{{ url_for('front.blogResource', resource_type='catalog', resource_data=blog.catalog) }}" title="查看 {{ blog.catalog }} 分类中所有文章" style="color: #999">&nbsp;{{ blog.catalog }}</a>&nbsp;</small>
@@ -54,21 +116,18 @@
 					    <small><i class="icon-calendar icon-1x"></i><scan style="color: #999">&nbsp;{{ blog.create_time }}</scan>&nbsp;</small>
 					    {% endif %}
 
-					    {%- if g.plugins.ChangyanComment.enable in ('true', 'True', True) %}
-                        <small><i class="icon-comment-alt icon-1x"></i><a href="{{ url_for('front.blogShow', bid=blog.id) }}#SOHUCS" title="《{{ blog.title }}》 上的评论" style="color: #999">&nbsp;评论{{ g.api.misc_get_commend(blog.id).data.comments }}次</a>&nbsp;</small>
-                        {% endif -%}
+                        {{ emit_tep('blog_index_infolist', blog=blog) }}
 					</h5>
 				</div>
 			</div>
 			{% endfor %}
-			</blockquote>
-
 			<!-- 分页 -->
-			{% set prev = blogs.page.page - 1 %}
-			{% set next = blogs.page.page + 1 %}
-			{% set last = blogs.page.PageCount - 1 %}
-			<center>
-			<ul class="pagination pagination-lg">
+			{%- set prev = blogs.page.page - 1 %}
+			{%- set next = blogs.page.page + 1 %}
+			{%- set last = blogs.page.PageCount - 1 %}
+			<nav aria-label="">
+            <center>
+			<ul class="pagination">
 			    {%- if blogs.page.page == 0 %}
 				<li class="disabled"><a>Prev</a></li>
 				{% else -%}
@@ -88,4 +147,8 @@
 				{%- endif %}
 			</ul>
 			</center>
+			</nav>
+			</blockquote>
+            {% endif %}
 {% endblock %}
+

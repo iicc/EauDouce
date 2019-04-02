@@ -3,18 +3,26 @@
 {% block title %}{{ data['title'] }}{% endblock %}
 
 {% block head %}
-    {%- if g.plugins.CodeHighlighting in ("true", "True", True) %}
-    <!-- 代码高亮插件 -->
-    <link href="{{ url_for('static', filename='highlight/styles/googlecode.css') }}" rel="stylesheet">
-    <script src="{{ url_for('static', filename='highlight/highlight.pack.js') }}"></script>
-    <script>hljs.initHighlightingOnLoad();</script>
-    {% endif -%}
-
     <style type="text/css">
         fieldset{padding:.35em .625em .75em;margin:0 2px;border:1px solid #009;border-radius:5px;}
         legend{padding:.5em;border:0;width:auto}
         img{max-width: 100%}
+        .funcarea{ padding:.35em .625em .75em;margin:0 2px;border:1px solid #009;border-radius:5px; height: auto; }
+        blockquote {
+            display: block;
+            border-left: 8px solid #d0e5f2;
+            padding: 5px 10px;
+            margin: 10px 0;
+            line-height: 1.4;
+            font-size: 100%;
+            background-color: #f1f1f1;
+        }
     </style>
+    {{ emit_tep('blog_show_header') }}
+    {%- if g.plugins.gitment.enable in ('true', 'True', True) %}
+    <!--gitment评论系统-->
+    <link rel="stylesheet" href="https://imsun.github.io/gitment/style/default.css">
+    {% endif %}
 {% endblock %}
 
 {% block PathNavigation %}
@@ -45,10 +53,10 @@
                     {% endif %}
                     </h3>
 			    </header>
-                <fieldset>
-                    <legend><small class="text-info text-lowercase">功能区</small></legend>
+                <div class="funcarea">
                     {% set admins = g.api.user_get_admins().data %}
-                    <div class="btn-group" role="group" aria-label="...">
+                    <div>
+                        <a href="{{ url_for('front.blogEnjoy', bid=blogId) }}" style='color:blue' target="_blank"><button type="button" class="btn btn-success">纯享阅读</button></a>
                         {% if g.signin and g.username == data.author or g.username in admins %}
                             <a href="{{ url_for('front.blogEdit', blogId=blogId) }}" style='color:blue'><button type="button" class="btn btn-warning">编辑文章</button></a>
                             <a href="javascript:delBlog()" style='color:blue'><button type="button" class="btn btn-danger">删除文章</button></a>
@@ -65,13 +73,11 @@
                                 <a href="javascript:setRecommend(true)" style='color:blue'><button type="button" class="btn btn-info">推荐文章</button></a>
                             {% endif %}
                         {% endif %}
-                        <!--<a href=""><button type="button" class="btn btn-default"><scan class="icon-thumbs-up"></scan>&nbsp;赞</button></a>
-                        <a href=""><button type="button" class="btn btn-default"><scan class="icon-thumbs-down"></scan>&nbsp;取消赞</button></a>-->
                     </div>
                     <h6>
-                        {% if data.author %}
-                        <i class="icon-user icon-1x"></i><a href="{{ url_for('front.userHome', user=data.author) }}" title="由 {{ data.author }} 发布" style="color: #999">&nbsp;{{ data.author }}</a>&nbsp;
-                        {% endif %}
+                        {#
+                        <i class="icon-user icon-1x"></i><a href="{{ url_for('front.userGo', uid=data.author) }}" title="由 {{ data.author }} 发布" style="color: #999">&nbsp;{{ data.author }}</a>&nbsp;
+                        #}
 
                         {% if data.catalog %}
                         <i class="icon-folder-open icon-1x"></i><a href="{{ url_for('front.blogResource', resource_type='catalog', resource_data=data.catalog) }}" title="查看 {{ data.catalog }} 分类中所有文章" style="color: #999">&nbsp;{{ data.catalog }}</a>&nbsp;
@@ -84,55 +90,50 @@
                         {% endfor %}
                         {% endif %}
 
-                        {% if data.create_time %}
-                        <i class="icon-calendar icon-1x"></i><scan style="color: #999">&nbsp;{{ data.create_time }}</scan>&nbsp;
+                        {% if data.update_time or data.create_time %}
+                        {% set timetext = '修改时间' if data.update_time else '创建时间' %}
+                        <i class="icon-calendar icon-1x"></i><scan style="color: #999" title="{{ timetext }}">&nbsp;{{ data.update_time or data.create_time }}</scan>&nbsp;
                         {% endif %}
 
-                        {%- if g.plugins.ChangyanComment.enable in ('true', 'True', True) %}
-                        <i class="icon-comment-alt icon-1x"></i>&nbsp;评论<a href="#SOHUCS">{{ g.api.misc_get_commend(blogId).data.comments }}</a>次&nbsp;
-                        {% endif %}
-
-                        {% if BaiduActivePushResult %}
-                            <scan class="text-success"><i class="icon-ok-circle icon-1x"></i>&nbsp;百度主动推送成功</scan>
-                        {% else %}
-                            <scan class="text-danger"><i class="icon-ok-circle icon-1x"></i>&nbsp;百度主动推送失败</scan>
-                        {% endif %}
+                        {{ emit_tep('blog_show_funcarea') }}
                     </h6>
-                </fieldset>
-                <fieldset>
-                    <legend><small class="text-success text-lowercase">正文区</small></legend>
-				    {{ data['content'] | safe }}
-                </fieldset>
+                    <hr>
+		            {{ data['content'] | safe }}
+                </div>
                 {%- if data.get("sources") == "原创" %}
                 <p></p>
                 <div class="alert alert-success alert-dismissible" role="alert">
-                    <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                     <b>版权声明</b>：<br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;本文为原创文章，由 {{ g.api.get_sys_config().data.about_awi }} 创作和发表，版权所有，转载请注明作者及出处！<br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;本文标题是：{{ data['title'] }}， 本文来源地址：<a href="{{ request.url }}" class="alert-link">{{ request.url }}</a>
+                    &nbsp;&nbsp;&nbsp;&nbsp;本文为原创文章，由 {{ g.api.get_sys_config().data.about_awi }} 创作和发表，遵循<a href="https://creativecommons.org/licenses/by-nc-nd/2.5/cn/" target="_blank">CC BY-NC-ND 2.5</a>许可！<br />
+                    &nbsp;&nbsp;&nbsp;&nbsp;本文标题是：{{ data['title'] }}， 本文来源地址：<a href="{{ request.base_url }}" class="alert-link">{{ request.base_url }}</a>
                 </div>
                 {% endif -%}
             </article>
-            {%- if g.plugins.BaiduShare in ('true', 'True', True) %}
-                <!-- 百度分享插件 -->
-                <div class="bdsharebuttonbox"><a href="#" class="bds_more" data-cmd="more">分享给朋友</a><a href="#" class="bds_weixin" data-cmd="weixin" title="分享到微信">微信</a><a href="#" class="bds_tsina" data-cmd="tsina" title="分享到新浪微博">新浪微博</a><a href="#" class="bds_sqq" data-cmd="sqq" title="分享到QQ好友">QQ好友</a><a href="#" class="bds_qzone" data-cmd="qzone" title="分享到QQ空间">QQ空间</a><a href="#" class="bds_huaban" data-cmd="huaban" title="分享到花瓣">花瓣</a><a href="#" class="bds_fbook" data-cmd="fbook" title="分享到Facebook">Facebook</a><a href="#" class="bds_twi" data-cmd="twi" title="分享到Twitter">Twitter</a><a href="#" class="bds_youdao" data-cmd="youdao" title="分享到有道云笔记">有道云笔记</a><a href="#" class="bds_mail" data-cmd="mail" title="分享到邮件分享">邮件分享</a></div>
-                <script>window._bd_share_config={"common":{"bdSnsKey":{},"bdText":"","bdMini":"2","bdMiniList":false,"bdPic":"","bdStyle":"1","bdSize":"16"},"share":{"bdSize":16}};with(document)0[(getElementsByTagName('head')[0]||body).appendChild(createElement('script')).src='/static/api/js/share.js?v=89860593.js?cdnversion='+~(-new Date()/36e5)];</script>
-            {% endif -%}
-            {%- if g.plugins.ChangyanComment.enable in ('true', 'True', True) %}
-                <!-- 畅言评论框插件,PC和WAP自适应版 -->
-                <div id="SOHUCS" sid="{{ blogId }}" ></div> 
-                <script type="text/javascript"> 
-                (function(){ 
-                    var appid = '{{ g.plugins.ChangyanComment.appid }}'; 
-                    var conf = '{{ g.plugins.ChangyanComment.appkey }}'; 
-                    var width = window.innerWidth || document.documentElement.clientWidth; 
-                    if (width < 960) { 
-                        window.document.write('<script id="changyan_mobile_js" charset="utf-8" type="text/javascript" src="https://changyan.sohu.com/upload/mobile/wap-js/changyan_mobile.js?client_id=' + appid + '&conf=' + conf + '"><\/script>'); } else { var loadJs=function(d,a){var c=document.getElementsByTagName("head")[0]||document.head||document.documentElement;var b=document.createElement("script");b.setAttribute("type","text/javascript");b.setAttribute("charset","UTF-8");b.setAttribute("src",d);if(typeof a==="function"){if(window.attachEvent){b.onreadystatechange=function(){var e=b.readyState;if(e==="loaded"||e==="complete"){b.onreadystatechange=null;a()}}}else{b.onload=a}}c.appendChild(b)};loadJs("https://changyan.sohu.com/upload/changyan.js",function(){window.changyan.api.config({appid:appid,conf:conf})}); } })(); 
-                </script>
-            {% endif -%}
+            <p></p>
+            {{ emit_tep('blog_show_content') }}
+            {%- if g.plugins.gitment.enable in ('true', 'True', True) %}
+            <!--gitment评论系统-->
+            <p><div id="gitment"></div></p>
+            <script src="https://imsun.github.io/gitment/dist/gitment.browser.js"></script>
+            <script>
+                var gitment = new Gitment({
+                    id: '{{ blogId }}', // 可选。默认为 location.href
+                    owner: '{{ g.plugins.gitment.user }}',
+                    repo: '{{ g.plugins.gitment.repo }}',
+                    oauth: {
+                        client_id: '{{ g.plugins.gitment.clientId }}',
+                        client_secret: '{{ g.plugins.gitment.clientSecret }}',
+                    },
+                })
+                gitment.render('gitment')
+            </script>
+            {% endif %}
+
 {% endblock %}
 
 {% block script %}
+{{ emit_tep('blog_show_script') }}
+
 <script type="text/javascript">
 {% if g.username in g.api.user_get_admins().data %}
 // 设置或取消置顶文章
@@ -198,7 +199,7 @@ function delBlog() {
     layer.confirm('你确定要删除此文章?', {
         btn: ['确认删除','我再想想']
     }, function(){
-        console.warn("将要删除节点"+{{ blogId }});
+        console.warn("将要删除节点"+"{{ blogId }}");
         $.ajax({
             url: "{{ url_for('api.blog', blogId=blogId) }}",
             method: 'DELETE',
@@ -223,22 +224,5 @@ function delBlog() {
     });
 }
 {% endif %}
-
-{% if g.plugins.BaiduAutoPush in ("true", "True", True) %}
-// 百度自动推送插件
-(function(){
-    var bp = document.createElement('script');
-    var curProtocol = window.location.protocol.split(':')[0];
-    if (curProtocol === 'https') {
-        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';        
-    }
-    else {
-        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
-    }
-    var s = document.getElementsByTagName("script")[0];
-    s.parentNode.insertBefore(bp, s);
-})();
-{% endif %}
-
 </script>
 {% endblock %}

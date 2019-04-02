@@ -1,34 +1,56 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
+"""
+    EauDouce.views.front
+    ~~~~~~~~~~~~~~
 
-import requests, datetime, SpliceURL
-from urlparse import urljoin
+    Foreground view.
+
+    :copyright: (c) 2017 by Mr.tao.
+    :license: MIT, see LICENSE for more details.
+"""
+
+import datetime
 from werkzeug.contrib.atom import AtomFeed
 from flask import Blueprint, g, render_template, request, redirect, url_for, make_response, abort
-from utils.tool import login_required, logger, BaiduActivePush
-
+from utils.tool import logger
+from utils.web import login_required
+from config import SSO
 
 front_blueprint = Blueprint("front", __name__)
+
 
 @front_blueprint.route("/")
 def index():
     return render_template("front/blogIndex.html")
 
+
 @front_blueprint.route('/blog/<int:bid>.html')
 def blogShow(bid):
     data = g.api.blog_get_id(bid).get("data")
     if data:
-        BaiduActivePushResult = False
-        if g.plugins['BaiduActivePush']['enable'] in ("true", "True", True):
-            original = True if data.get("sources") == "原创" else False
-            BaiduActivePushResult = True if BaiduActivePush(request.url, original=original).get("success") == 1 else False
-        return render_template("front/blogShow.html", blogId=bid, data=data, BaiduActivePushResult=BaiduActivePushResult)
+        original = True if data.get("sources") == "原创" else False
+        data.update(original=original, blogId=bid)
+        g.blogData = data
+        return render_template("front/blogShow.html", blogId=bid, data=data, original=True if data.get("sources") == "原创" else False)
     else:
         return abort(404)
+
+
+@front_blueprint.route('/blogEnjoy/<int:bid>.html')
+def blogEnjoy(bid):
+    # 文章纯享版，全屏展示文章内容，无其他不相关
+    data = g.api.blog_get_id(bid).get("data")
+    if data:
+        return render_template("front/blogEnjoy.html", blogId=bid, data=data, original=True if data.get("sources") == "原创" else False)
+    else:
+        return abort(404)
+
 
 @front_blueprint.route("/blog/write/")
 @login_required
 def blogWrite():
     return render_template("front/blogWrite.html")
+
 
 @front_blueprint.route("/blog/edit/")
 @login_required
@@ -41,60 +63,87 @@ def blogEdit():
                 return render_template("front/blogEdit.html", blogId=blogId, data=data)
         return abort(404)
 
+
 @front_blueprint.route("/blog/resource/")
 def blogResource():
     return render_template("front/blogResource.html")
 
-@front_blueprint.route("/user/<user>/")
-def userHome(user=None):
-    logger.debug(user)
-    return render_template("front/userHome.html", user=user)
+
+@front_blueprint.route("/blog/search/")
+def blogSearch():
+    return render_template("front/blogSearch.html")
+
+
+@front_blueprint.route("/user/go/")
+def userGo():
+    # 过渡性的路由，用于使用uid跳转到userIndex的情况
+    uid = request.args.get("uid") or g.uid
+    res = g.api.user_get_domainName(uid)
+    if res["code"] == 0:
+        return redirect(url_for("front.userIndex", domain_name=res["domain_name"]))
+    else:
+        return abort(404)
+
+
+@front_blueprint.route("/user/<domain_name>")
+def userIndex(domain_name):
+    # 用户主页
+    res = g.api.user_getprofile_with_domainName(domain_name)
+    if res["code"] == 0:
+        return render_template("front/userIndex.html", userdata=res["data"], blogdata=g.api.blog_get_user_blog(res["data"]["uid"])["data"])
+    else:
+        return abort(404)
+
+
+@front_blueprint.route("/user/setting/")
+@login_required
+def userSet():
+    return redirect("{}/user/setting/".format(SSO["sso_server"].strip("/")))
+
 
 @front_blueprint.route("/user/ChangeAvater/")
 @login_required
 def userChangeAvater():
-    return render_template("front/userChangeAvater.html")
+    return redirect("{}/user/setting/#avatar".format(SSO["sso_server"].strip("/")))
+
 
 @front_blueprint.route("/user/ChangePassword/")
 @login_required
 def userChangePassword():
-    return render_template("front/userChangePassword.html")
+    return redirect("{}/user/setting/#pass".format(SSO["sso_server"].strip("/")))
 
-@front_blueprint.route("/user/ChangeCover/")
-@login_required
-def userChangeCover():
-    return render_template("front/userChangeCover.html")
 
 @front_blueprint.route("/user/ChangeProfile/")
 @login_required
 def userChangeProfile():
-    return render_template("front/userChangeProfile.html")
+    return redirect("{}/user/setting/".format(SSO["sso_server"].strip("/")))
 
-@front_blueprint.route("/robots.txt")
-def robots():
-    return """
-User-agent: *
-Disallow: 
-Sitemap: http://www.saintic.com/sitemap.xml
-    """
-##
+
 @front_blueprint.route("/sitemap.xml")
-def sitemap():
-    resp = make_response(render_template("public/sitemap.xml", data=get_index_list()))
-    resp.headers["Content-Type"] = "application/xml"    
+def sitemapxml():
+    resp = make_response(render_template("public/sitemap.xml"))
+    resp.headers["Content-Type"] = "application/xml"
     return resp
+
+
+@front_blueprint.route("/sitemap.html")
+def sitemaphtml():
+    # 站点地图
+    return render_template("public/sitemap.html")
+
 
 @front_blueprint.route("/feed/")
 def feed():
+    # 订阅
     data = g.api.blog_get_all(limit=10).get("data")
-    feed = AtomFeed(u'清水蓝天博客源', feed_url=request.url, url=request.url_root, subtitle="From the latest article in EauDouce")
+    feed = AtomFeed(g.api.get_sys_config().get("data").get("site_feedname") or "EauDouce", feed_url=request.url, url=request.url_root, subtitle="From the latest article in {}".format(request.url))
     for article in data:
         updated = article['update_time'][:10] if article['update_time'] else article['create_time'][:10]
         feed.add(article['title'], unicode(article['content']),
                  content_type='html',
                  author=article['author'],
                  id=article['id'],
-                 url=urljoin(request.url_root, url_for(".blogShow", bid=article['id'])),
+                 url=url_for(".blogShow", bid=article['id'], utm_source='feed', _external=True),
                  updated=datetime.datetime.strptime(updated, "%Y-%m-%d"),
                  published=datetime.datetime.strptime(article['create_time'][:10], "%Y-%m-%d"))
     return feed.get_response()

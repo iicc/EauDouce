@@ -1,0 +1,26 @@
+<!--百度主动(实时)推送-->
+<script type="text/javascript">
+$(document).ready(function () {
+    var BaiduActivePush = document.getElementById("BaiduActivePush");
+    $.ajax({
+        url: "{{ url_for('api.misc', action='BaiduActivePush') }}",
+        method: 'POST',
+        datatype: 'json',
+        data: {"pushUrl": "{{ request.base_url }}", "original": "{{ g.blogData.original }}"},
+        success: function(res) {
+            console.log(res);
+            if (res.success==true) {
+                BaiduActivePush.setAttribute("class", "text-success");
+                BaiduActivePush.innerHTML = '<i class="icon-ok-circle icon-1x"></i>&nbsp;百度主动推送成功';
+            } else {
+                BaiduActivePush.setAttribute("class", "text-danger");
+                BaiduActivePush.innerHTML = '<i class="icon-ok-circle icon-1x"></i>&nbsp;百度主动推送失败';
+            }
+        },
+        error: function(error){
+                BaiduActivePush.setAttribute("class", "text-danger");
+                BaiduActivePush.innerHTML = '<i class="icon-ok-circle icon-1x"></i>&nbsp;百度主动推送插件发生未知错误';
+        }
+    });
+});
+</script>

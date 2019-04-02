@@ -1,0 +1,24 @@
+<!--
+ * 基于https://github.com/GC0202/WordPress-connect-WeChat-applet开发
+ * The MIT License (MIT)
+-->
+ 
+<!--pages/detail/detail.wxml-->
+<import src="../../vender/wxParse/wxParse.wxml"/>
+<view class="page">
+    <view class="page__bd">
+        <view class="weui-article">
+            <view class="weui-article__h1">{{info.title}}</view>
+            <view class="weui-article__section">
+                <view class="weui-article__section">
+                    <view class="weui-article__p">
+                        <template is="wxParse" data="{{wxParseData:content.nodes}}"/>
+                    </view>
+                    <view class="tip">
+                        温馨提示：小程序尚无法解析文章代码高亮，<text style="font-weight: font;color: blue" bindtap="copyTBL">点击此处一键复制</text>，使用浏览器打开！
+                    </view>
+                </view>
+            </view>
+        </view>
+    </view>
+</view>

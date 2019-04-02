@@ -1,57 +1,54 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
+"""
+    EauDouce.libs.api
+    ~~~~~~~~~~~~~~
 
-import requests
-from config import MYSQL, PLUGINS
-from random import choice
-from torndb import IntegrityError, Connection
-from utils.tool import logger, ParseMySQL, get_today, ListEqualSplit, md5
+    Interface class.
+
+    :copyright: (c) 2017 by Mr.tao.
+    :license: MIT, see LICENSE for more details.
+"""
+
+import requests, sys, json
+from config import PLUGINS
+from torndb import IntegrityError
+from utils.tool import logger, get_today, ListEqualSplit, md5, DO, user_pat, sql_safestring_check
+from .base import ServiceBase
 
 
-class BaseApiManager(object):
+class BlogApiManager(ServiceBase):
 
+    def get_banner(self):
+        res = dict(msg=None)
+        data = [
+            {'imgUrl':'https://img.saintic.com/interest.blog/blog/9045593365244993.png','title':'来：订阅更新本站吆！','id':200, "isActive": False},
+            {'imgUrl':'https://img.saintic.com/interest.blog/blog/201701032126317486.png','title':'Python抓取花瓣网画板图片','id':204, "isActive": False},
+            {'imgUrl':'https://img.saintic.com/interest.blog/blog/swarm.png','title':'开源项目之SwarmOps','id':217, "isActive": True},
+        ]
+        res.update(data=data)
+        return res
+    
+    def get_source_html(self):
+        sql  = "SELECT id,title,content FROM blog_article"
+        return self.mysql_read.query(sql)
 
-    def __init__(self):
-        self.mysql = Connection(
-                    host     = "%s:%s" %(ParseMySQL(MYSQL).get('Host', '127.0.0.1'), ParseMySQL(MYSQL).get('Port', 3306)),
-                    user     = ParseMySQL(MYSQL).get('User', 'root'),
-                    password = ParseMySQL(MYSQL).get('Password'),
-                    database = ParseMySQL(MYSQL).get('Database'),
-                    time_zone= ParseMySQL(MYSQL).get('Timezone','+8:00'),
-                    charset  = ParseMySQL(MYSQL).get('Charset', 'utf8'),
-                    connect_timeout=3,
-                    max_idle_time=2)
-
-    @property
-    def RegisteredUser(self):
-        "返回本地已注册的用户名列表"
-
-        sql = "SELECT lauth_username FROM user_lauth"
-        logger.info("query registered user list SQL: {}".format(sql))
-        try:
-            data = self.mysql.query(sql)
-        except Exception,e:
-            logger.error(e, exc_info=True)
-            logger.warn("get user list error, return false")
-            return False
+    def blog_search(self, q):
+        "搜索文章标题"
+        reload(sys)
+        sys.setdefaultencoding('utf-8')
+        #q = unicode(q)
+        res = {"msg": None, "data": [], "code": 0}
+        logger.api.debug("blog_search query: {0}, query type: {1}".format(q, type(q)))
+        if ";" in q:
+            res.update(msg="Parameter is not legal", code=-1)
         else:
-            return [ _.get("lauth_username") for _ in data if _.get("lauth_username") ]
-
-    def RegisteredUserInfo(self, username):
-        "返回用户信息"
-
-        sql = "SELECT lauth_username, lauth_password FROM user_lauth WHERE lauth_username=%s"
-        logger.info("query user information SQL: {}".format(sql))
-
-        try:
-            data = self.mysql.get(sql, username)
-        except Exception,e:
-            logger.error(e, exc_info=True)
-            logger.warn("get user info error, return an empty dict")
-            return {}
-        else:
-            return data
-
-class BlogApiManager(BaseApiManager):
+            sql  = "SELECT id,title,create_time,update_time,tag,author FROM blog_article WHERE title LIKE '%%{0}%%' OR content LIKE '%%{0}%%';".format(q)
+            data = self.mysql_read.query(sql)
+            #res.update(data=[ blog for blog in data if q in blog["title"] ])
+            res.update(data=data)
+            logger.api.info(sql)
+        
+        return res
 
     def blog_get_catalog_data(self, catalog, sort="desc", limit=None):
         "查询分类目录数据"
@@ -59,16 +56,16 @@ class BlogApiManager(BaseApiManager):
         res   = {"msg": None, "data": [], "code": 0}
         LIMIT = "LIMIT " + str(limit) if limit else ""
         sql   = "SELECT id,title,catalog,author,create_time FROM blog_article WHERE catalog='%s' ORDER BY id %s %s" %(catalog, sort, LIMIT)
-        logger.info("query catalog data SQL: %s" %sql)
+        logger.api.info("query catalog data SQL: %s" %sql)
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="Catalog data query fail", code=100009)
         else:
             res.update(data=data)
 
-        logger.info(res)
+        
         return res
 
     def blog_get_sources_data(self, sources, sort="desc", limit=None):
@@ -86,16 +83,16 @@ class BlogApiManager(BaseApiManager):
             #Original reproduced translation
 
             sql = "SELECT id,title,sources,author,create_time FROM blog_article WHERE sources='%s' ORDER BY id %s %s" %(sources, sort, LIMIT)
-            logger.info("query sources data SQL: {}".format(sql))
+            logger.api.info("query sources data SQL: {}".format(sql))
             try:
-                data = self.mysql.query(sql)
+                data = self.mysql_read.query(sql)
             except Exception,e:
-                logger.error(e, exc_info=True)
+                logger.api.error(e, exc_info=True)
                 res.update(msg="Sources data query fail", code=100001)
             else:
                 res.update(data=data)
 
-        logger.info(res)
+        
         return res
 
     def blog_get_tag_data(self, tag, sort="desc"):
@@ -103,11 +100,11 @@ class BlogApiManager(BaseApiManager):
 
         res = {"msg": None, "data": [], "code": 0}
         sql = "SELECT id,title,tag,author,create_time FROM blog_article ORDER BY id {}".format(sort)
-        logger.info("query tag data SQL: {}".format(sql))
+        logger.api.info("query tag data SQL: {}".format(sql))
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="Tag data query fail", code=100004)
         else:
             tagData = []
@@ -117,7 +114,7 @@ class BlogApiManager(BaseApiManager):
                     tagData.append(_)
             res.update(data=tagData)
 
-        logger.info(res)
+        
         return res
 
 
@@ -127,16 +124,16 @@ class BlogApiManager(BaseApiManager):
         res   = {"msg": None, "data": [], "code": 0}
         LIMIT = "LIMIT " + str(limit) if limit else ""      
         sql   = "SELECT id,title,create_time,update_time,tag FROM blog_article WHERE update_time IS NOT NULL ORDER BY update_time %s %s" %(sort, LIMIT)
-        logger.info("query update_time data SQL: %s" %sql)
+        logger.api.info("query update_time data SQL: %s" %sql)
         try:
-            data = mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="query update data fail", code=100007)
         else:
             res.update(data=data)
 
-        logger.info(res)
+        
         return res
 
     def blog_get_top_data(self, sort="desc", limit=None):
@@ -145,16 +142,16 @@ class BlogApiManager(BaseApiManager):
         res   = {"msg": None, "data": [], "code": 0}
         LIMIT = "LIMIT " + str(limit) if limit else ""
         sql   = "SELECT id,title,create_time,update_time,top FROM blog_article ORDER BY update_time %s %s" %(sort, LIMIT)
-        logger.info("query top data SQL: {}".format(sql))
+        logger.api.info("query top data SQL: {}".format(sql))
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="Top data query fail", code=100003)
         else:
             res.update(data=[ _ for _ in data if _.get("top") in ("true", "True", True) ])
 
-        logger.info(res)
+        
         return res
 
     def blog_get_recommend_data(self, sort="desc", limit=None):
@@ -162,16 +159,16 @@ class BlogApiManager(BaseApiManager):
         res   = {"msg": None, "data": [], "code": 0}
         LIMIT = "LIMIT " + str(limit) if limit else ""
         sql   = "SELECT id,title,create_time,update_time,recommend FROM blog_article ORDER BY update_time %s %s" %(sort, LIMIT)
-        logger.info("query recommend data SQL: {}".format(sql))
+        logger.api.info("query recommend data SQL: {}".format(sql))
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="Recommend data query fail", code=100002)
         else:
             res.update(data=[ _ for _ in data if _.get("recommend") in ("true", "True", True) ])
 
-        logger.info(res)
+        
         return res
 
 
@@ -180,18 +177,18 @@ class BlogApiManager(BaseApiManager):
 
         res = {"msg": None, "data": [], "code": 0}
         sql = 'SELECT catalog FROM blog_catalog'
-        logger.info("query catalog list SQL: %s" %sql)
+        logger.api.info("query catalog list SQL: %s" %sql)
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
             data = list(set([ v for _ in data for v in _.values() if v ]))
             #data = [ v.split(",")[0] for i in data for v in i.values() if v and v.split(",")[0] ]
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="query catalog data fail", code=100008)
         else:
             res.update(data=data)
 
-        logger.info(res)
+        
         return res
 
     def blog_get_tags_list(self):
@@ -199,13 +196,12 @@ class BlogApiManager(BaseApiManager):
 
         res   = {"msg": None, "data": [], "code": 0}
         sql   = "SELECT tag FROM blog_article"
-        color = ["default", "primary", "success", "info", "warning", "danger"] 
-        logger.info("query tag list SQL: "+ sql)
+        logger.api.info("query tag list SQL: "+ sql)
 
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="Tag list query fail", code=100005)
         else:
             tags = []
@@ -213,9 +209,9 @@ class BlogApiManager(BaseApiManager):
                 if _.get('tag'):
                     tags += _.get("tag").split()
             data = list(set(tags))
-            res.update(data=[ {"tag": tag, "color": choice(color)} for tag in data ])
+            res.update(data=data)
 
-        logger.info(res)
+        
         return res
 
 
@@ -225,77 +221,88 @@ class BlogApiManager(BaseApiManager):
         res   = {"msg": None, "data": [], "code": 0, "page": {}}
         LIMIT = "LIMIT " + str(limit) if limit else ""
         sql   = "SELECT id,title,create_time,update_time,tag,author,catalog FROM blog_article ORDER BY id %s %s" %(sort, LIMIT)
-        logger.info("query single index SQL: %s" %sql)
+        logger.api.info("query single index SQL: %s" %sql)
         try:
             page = int(page)
-            blog = self.mysql.query(sql)
+            blog = self.mysql_read.query(sql)
             data = ListEqualSplit(blog, length)
             length = int(length)
             res.update(statistics=len(blog))
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="query single index fail", code=100006)
         else:
             if page < len(data):
                 res.update(data=data[page], page={"page": page, "limit": limit, "length": length, "PageCount": len(data)})
             else:
-                logger.info("get single index, but IndexOut with page "+page)
+                logger.api.info("get single index, but IndexOut with page {}".format(page))
 
-        logger.info(res)
+        
         return res
 
     def blog_get_user_blog(self, user, sort="desc", limit=None):
-        "查询某用户的博客"
+        "查询某用户的博客 user=uid"
 
         res   = {"msg": None, "data": [], "code": 0}
         LIMIT = "LIMIT " + str(limit) if limit else ""
         sql   = "SELECT id,title,create_time,update_time,tag,catalog,sources,author from blog_article WHERE author='%s' ORDER BY id %s %s" %(user, sort, LIMIT)
-        logger.info("query user blog SQL: %s" %sql)
+        logger.api.info("query user blog SQL: %s" %sql)
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update( msg="User blog data query fail", code=1000010)
         else:
             res.update(data=data)
         
-        logger.info(res)
+        
         return res
 
+    def blog_refresh_id_cache(self, blogId):
+        """刷新某个id博客数据缓存"""
+        key = "EauDouce:blog:{}:cache".format(blogId)
+        kid = self.redis.delete(key)
+        return True if isinstance(kid, (int, long)) else False
 
     def blog_get_id(self, blogId):
         "查询某个id的博客数据"
 
         res = {"msg": None, "data": [], "code": 0}
-        sql = "SELECT id,title,content,create_time,update_time,tag,catalog,sources,author,recommend,top FROM blog_article WHERE id=%s" %blogId
-        logger.info("get some id blog SQL: %s" %sql)
-        try:
-            data = self.mysql.get(sql)
-        except Exception,e:
-            logger.error(e, exc_info=True)
-            res.update(msg="get blog error", code=1000011)
-        else:
+        key = "EauDouce:blog:{}:cache".format(blogId)
+        if self.redis.exists(key):
+            data = json.loads(self.redis.get(key))
             res.update(data=data)
+            logger.api.info("hit blog cache")
+        else:
+            sql = "SELECT id,title,content,create_time,update_time,tag,catalog,sources,author,recommend,top FROM blog_article WHERE id=%s" %blogId
+            try:
+                data = self.mysql_read.get(sql)
+            except Exception,e:
+                logger.api.error(e, exc_info=True)
+                res.update(msg="get blog error", code=1000011)
+            else:
+                res.update(data=data)
+                self.redis.set(key, json.dumps(data))
+                self.redis.expire(key, 600)
 
-        logger.info(res)
+        
         return res
 
-    def blog_get_all(self, sort="desc", limit=None):
+    def blog_get_all(self, limit=None, sort="desc"):
         "查询所有文章"
 
-        res   = {"msg": None, "data": [], "code": 0}
-        LIMIT = "LIMIT " + str(limit) if limit else ""
-        sql   = "SELECT id,title,content,create_time,update_time,tag,catalog,sources,author FROM blog_article ORDER BY id %s %s" %(sort, LIMIT)
-        logger.info("query all blog SQL: %s" %sql)
+        res = {"msg": None, "data": [], "code": 0}
+        sql = "SELECT id,title,content,create_time,update_time,tag,catalog,sources,author,recommend,top FROM blog_article ORDER BY id %s %s" %(sort, "LIMIT %s" %limit if limit else "")
+        logger.api.info("query all blog SQL: %s" %sql)
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="get all blog error", code=1000012)
         else:
             res.update(data=data)
 
-        logger.info(res)
+        
         return res
 
 
@@ -313,18 +320,18 @@ class BlogApiManager(BaseApiManager):
 
         if blog_title and blog_content and blog_ctime and blog_author:
             sql = 'INSERT INTO blog_article (title,content,create_time,tag,catalog,sources,author) VALUES (%s, %s, %s, %s, %s, %s, %s)'
-            logger.info(sql %(blog_title, blog_content, blog_ctime, blog_tag, blog_catalog, blog_sources, blog_author))
+            logger.api.info(sql %(blog_title, blog_content, blog_ctime, blog_tag, blog_catalog, blog_sources, blog_author))
             try:
-                blog_id  = self.mysql.insert(sql, blog_title, blog_content, blog_ctime, blog_tag, blog_catalog, blog_sources, blog_author)
+                blog_id  = self.mysql_write.insert(sql, blog_title, blog_content, blog_ctime, blog_tag, blog_catalog, blog_sources, blog_author)
             except Exception,e:
-                logger.error(e, exc_info=True)
+                logger.api.error(e, exc_info=True)
                 res.update(msg="Blog article failed to write, please try to resubmit.", code=1000013)
             else:
                 res.update(msg="blog write success.", success=True, data=blog_id)
         else:
             res.update(msg="data in wrong format.", code=1000014)
 
-        logger.info(res)
+        
         return res
 
     def blog_update(self, **kwargs):
@@ -343,22 +350,22 @@ class BlogApiManager(BaseApiManager):
         try:
             blog_blogId = int(blog_blogId)
         except ValueError,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="blogId form error.", code=1000015)
         else:
             if blog_title and blog_content and blog_utime and blog_author:
                 sql = "UPDATE blog_article SET title=%s,content=%s,update_time=%s,tag=%s,catalog=%s,sources=%s,author=%s WHERE id=%s"
                 try:
-                    self.mysql.update(sql, blog_title, blog_content, blog_utime, blog_tag, blog_catalog, blog_sources, blog_author, blog_blogId)
+                    self.mysql_write.update(sql, blog_title, blog_content, blog_utime, blog_tag, blog_catalog, blog_sources, blog_author, blog_blogId)
                 except Exception,e:
-                    logger.error(e, exc_info=True)
+                    logger.api.error(e, exc_info=True)
                     res.update(msg="blog update error.", code=1000016)
                 else:
-                    res.update(success=True)
+                    res.update(success=True, msg=self.blog_refresh_id_cache(blog_blogId))
             else:
                 res.update(msg="blog form error.", code=1000017)
 
-        logger.info(res)
+        
         return res
 
     def blog_delete(self, blogId):
@@ -366,16 +373,16 @@ class BlogApiManager(BaseApiManager):
 
         res = {"msg": None, "success": False, "code": 0}
         sql = "DELETE FROM blog_article WHERE id={}".format(blogId)
-        logger.info("delete blog sql: "+sql)
+        logger.api.info("delete blog sql: "+sql)
         try:
-            data = self.mysql.execute(sql)
+            data = self.mysql_write.execute(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="delete blog error", code=1000018)
         else:
-            res.update(success=True)
+            res.update(success=True, msg=self.blog_refresh_id_cache(blogId))
 
-        logger.info(res)
+        
         return res
 
     def blog_get_statistics(self):
@@ -386,10 +393,9 @@ class BlogApiManager(BaseApiManager):
             "TagTotal": len(self.blog_get_tags_list().get("data")),
             "CommentTotal": None,
         }
-        logger.info(data)
         return data
 
-class MiscApiManager(BaseApiManager):
+class MiscApiManager(ServiceBase):
 
     def misc_set_recommend(self, blogId, value="true"):
         """
@@ -398,7 +404,7 @@ class MiscApiManager(BaseApiManager):
         #value: 动作结果，true为推荐文章，false为取消推荐。
         """
         res = { "msg": None, "success": False, "code": 0}
-        logger.info("blogId: %s, value: %s" %(blogId, value))
+        logger.api.info("blogId: %s, value: %s" %(blogId, value))
 
         #check params
         if not value in ("true", "True", True, "false", "False", False):
@@ -408,21 +414,21 @@ class MiscApiManager(BaseApiManager):
         except:
             res.update(msg="illegal parameter blogId", code=200002)
         if res['msg']:
-            logger.info(res)
+            
             return res
 
         try:
             #sql = "UPDATE blog_article SET update_time='%s',%s='%s' WHERE id=%d" %(get_today(), value, value, blogId)
             sql = "UPDATE blog_article SET recommend='{}' WHERE id={}".format(value, blogId)
-            logger.info(sql)
-            self.mysql.update(sql)
+            logger.api.info(sql)
+            self.mysql_write.update(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="set or unset recommend error", success=False, code=200003)
         else:
-            res.update(success=True)
+            res.update(success=True, msg=self.blog_refresh_id_cache(blogId))
 
-        logger.info(res)
+        
         return res
 
     def misc_set_top(self, blogId, value="true"):
@@ -432,7 +438,7 @@ class MiscApiManager(BaseApiManager):
         #value: 动作结果，true为置顶文章，false为取消置顶。
         """
         res = {"msg": None, "success": False, "code": 0}
-        logger.info("blogId: %s, value: %s" %(blogId, value))
+        logger.api.info("blogId: %s, value: %s" %(blogId, value))
 
         #check params
         if not value in ("true", "True", True, "false", "False", False):
@@ -442,20 +448,20 @@ class MiscApiManager(BaseApiManager):
         except:
             res.update(msg="illegal parameter blogId", code=200005)
         if res['msg']:
-            logger.info(res)
+            
             return res
 
         try:
             sql = "UPDATE blog_article SET top='{}' WHERE id={}".format(value, blogId)
-            logger.info(sql)
-            self.mysql.update(sql)
+            logger.api.info(sql)
+            self.mysql_write.update(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(success=False, msg="set or unset top error", code=200006)
         else:
-            res.update(success=True)
+            res.update(success=True, msg=self.blog_refresh_id_cache(blogId))
 
-        logger.info(res)
+        
         return res
 
     def misc_get_commend(self, blogId):
@@ -469,308 +475,223 @@ class MiscApiManager(BaseApiManager):
             try:
                 data = requests.get(url).json().get("result").get(str(blogId))
             except Exception,e:
-                logger.error(e, exc_info=True)
+                logger.api.error(e, exc_info=True)
                 res.update(msg="Comment Api Error", code=-1)
             else:
                 res.update(data=data)
         else:
             res.update(msg="illegal parameter action", code=-1)
 
-        logger.info(res)
+        
         return res
 
-class UserApiManager(BaseApiManager):
+    def misc_BaiduActivePush(self, pushUrl, original=True):
+        """百度主动推送(实时)接口提交链接，每个链接3次提交机会，超过后不允许提交
+        @param pushUrl str: 提交的链接
+        @param original bool: 是否原创
+        """
+        res = dict(msg=None, success=False)
+        key = "EauDouce:BaiduActivePushUrls:hash"
+        callUrl = PLUGINS['BaiduActivePush']['callUrl']
+        callUrl = callUrl + "&type=original" if original else callUrl
+        pushTimes = int(self.redis.hget(key, pushUrl) or 0)
+        logger.api.debug("pushUrl: {}, original: {}, pushTimes: {}, check: {}".format(pushUrl, original, pushTimes, 0 <= pushTimes <= 3))
+        if 0 <= pushTimes <= 3:
+            try:
+                data = requests.post(url=callUrl, data=pushUrl, timeout=3, headers={"User-Agent": "BaiduActivePush/www.saintic.com"}).json()
+            except Exception,e:
+                logger.api.warning(e, exc_info=True)
+                res.update(msg="push failed")
+            else:
+                # data like {u'success_realtime': 0, u'remain_realtime': 0}
+                logger.api.info("BaiduActivePush PushUrl is %s, Result is %s" % (pushUrl, data))
+                if int(data.get("success_realtime") or data.get("success") or 0) == 1:
+                    res.update(success=True)
+                    self.redis.hincrby(key, pushUrl, 1)
+        else:
+            res.update(msg="No submission authority", success=True)
+        return res
 
-    @property
-    def AlreadyLogged(self):
-        ticket = request.form.get("ticket", request.args.get("ticket"))
-        if isLogged_in(ticket) in ("True", True):
-            return True
+class UserApiManager(ServiceBase):
+
+
+    def sso_get_userinfo(self, uid):
+        key = "EauDouce:userinfo:{}".format(uid)
+        if uid:
+            try:
+                data = json.loads(self.redis.get(key))
+            except Exception,e:
+                logger.sys.debug(e)
+            else:
+                return data
+        return dict()
+
+    def sso_set_userinfo(self, uid, userinfo, expire=None):
+        key = "EauDouce:userinfo:{}".format(uid)
+        if uid and userinfo and isinstance(userinfo, dict):
+            source = self.sso_get_userinfo(uid)
+            source.update(userinfo)
+            try:
+                self.redis.set(key, json.dumps(source))
+                if isinstance(expire, int):
+                    self.redis.expire(key, expire)
+            except Exception,e:
+                logger.sys.debug(e)
+            else:
+                return True
         return False
 
     def user_get_list(self, OAuth=False):
-        "获取用户列表"
-
-        res = {"code": 0, "msg": None, "data": []}
-        sql = "SELECT lauth_username FROM user_lauth UNION SELECT oauth_username FROM user_oauth" if OAuth else "SELECT lauth_username FROM user_lauth"
-        logger.info("get user list sql: "+ sql)
+        "获取用户列表, OAuth: 没用"
+        sql = "SELECT uid FROM user_profile"
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.info(e, exc_info=True)
-            res.update(msg="get user list error", code=300001)
+            logger.api.error(e, exc_info=True)
+            return []
         else:
-            res.update(data=[ _["lauth_username"] for _ in data if _.get("lauth_username") ])
+            return [ _.get("uid") for _ in data if _.get("uid") ]
 
-        logger.info(res)
-        return res
-
-    def user_get_lauth_passwd(self, username):
-        "获取本地用户密码"
-
-        res = {"code": 0, "msg": None, "data": None}
-        sql = "SELECT lauth_password FROM user_lauth WHERE lauth_username=%s"
-        logger.info("get user password sql: "+ sql)
-        try:
-            data = self.mysql.get(sql, username)
-        except Exception,e:
-            logger.info(e, exc_info=True)
-            res.update(msg="get user password error", code=300001)
-        else:
-            res.update(data=data.get("lauth_password"))
-
-        logger.info(res)
-        return res
 
     def user_get_all(self):
         "获取所有用户资料"
-
         res = {"code": 0, "msg": None, "data": []}
-        sql = "SELECT a.id, a.username, a.email, a.cname, a.avatar, a.cover, a.motto, a.url, a.time, a.weibo, a.github, a.gender, a.extra, a.isAdmin FROM user_profile a"
-        logger.info("get all user and profile sql: "+ sql)
+        sql = "SELECT * FROM user_profile"
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.info(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="get all user error", code=300001)
         else:
             res.update(data=data)
-
-        logger.info(res)
         return res
 
     def user_get_one_profile(self, username):
-        "查询用户资料"
-
-        res = {"code": 0, "msg": None, "data": {}}        
-        sql = "SELECT a.id, a.username, a.email, a.cname, a.avatar, a.cover, a.motto, a.url, a.time, a.weibo, a.github, a.gender, a.extra, a.isAdmin FROM user_profile a INNER JOIN user_oauth b ON a.username = b.oauth_username WHERE a.username=%s"
-        data = self.mysql.get(sql, username)
-        if not data:
-            sql = "SELECT a.id, a.username, a.email, a.cname, a.avatar, a.cover, a.motto, a.url, a.time, a.weibo, a.github, a.gender, a.extra, a.isAdmin FROM user_profile a INNER JOIN user_lauth b ON a.username = b.lauth_username WHERE a.username=%s"
-            data = self.mysql.get(sql, username)
-        logger.info("get username profile sql: " + sql)
-        res.update(data=data)
-        logger.info(res)
+        "返回用户信息, username = uid"
+        sql = "SELECT * FROM user_profile WHERE uid=%s"
+        res = dict(data=dict(), msg=None)
+        try:
+            data = self.mysql_read.get(sql, username)
+        except Exception,e:
+            logger.api.error(e, exc_info=True)
+        else:
+            res.update(data=data)
         return res
 
     def user_get_admins(self):
         "获取管理员列表"
         res = {"code": 0, "msg": None, "data": []}
-        sql = "SELECT username FROM user_profile WHERE isAdmin='true'"
-        logger.info("query admin sql: " + sql)
+        sql = "SELECT uid FROM user_profile WHERE is_admin=1"
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e, exc_info=True)
+            logger.api.error(e, exc_info=True)
             res.update(msg="query admin account error", code=300001)
         else:
-            res.update(data=[ _["username"] for _ in data if _.get("username") ])
-
-        logger.info(res)
+            res.update(data=[ _["uid"] for _ in data if _.get("uid") ])
         return res
 
-    def post(self):
-        """login and registry, with url args:
-        1. action=log/reg, default is log;
-
-        post data:
-        1. username,
-        2. password,
-        3. email
-        """
-        NULL     = None
-        res      = {"url": request.url, "msg": None, "success": False}
-        username = request.form.get("username")
-        password = request.form.get("password")
-        email    = request.form.get("email", NULL)
-        action   = request.args.get("action") #log or reg (登录or注册)
-
-        #chck username and password value
-        if not username or not password:
-            res.update(msg="Invaild username or password", code=10001)
-            logger.info(res)
-            return res
-
-        #check username and password length
-        if 5 <= len(username) < 30 and 5 <= len(password) < 30:
-            MD5password = md5(password)
-        else:
-            res.update({'msg': 'username or password length requirement is greater than or equal to 5 less than 30', 'code': 10002})
-            logger.warn(res)
-            return res
-
-        #check username pattern
-        if not user_pat.match(username):
-            res.update({'msg': 'username is not valid', 'code': 10003})
-            logger.warn(res)
-            return res
-
-        if email and mail_pat.match(email) == None:
-            res.update({'msg': "email format error", 'code': 10004})
-            logger.warn(res)
-            return res
-
-        #Start Action with (log, reg)
-        if action == 'SignIn':
-            logger.debug(RegisteredUser())
-            logger.debug("MD5password: %s, DBpassword: %s, username: %s" %(MD5password, RegisteredUserInfo(username).get("lauth_password"),username))
-            if username in RegisteredUser():
-                if MD5password == RegisteredUserInfo(username).get("lauth_password"):
-                    res.update({'msg': 'Password authentication success at sign in', 'code': 0, "success": True})
-                else:
-                    res.update({'msg': 'Password authentication failed at sign in', 'code': 10005, "success": False})
-            else:
-                res.update({'msg':'username not exists', 'code': 10006})
-            logger.info(res)
-            return res
-
-        elif action == 'SignUp':
-            try:
-                AuthSQL = "INSERT INTO LAuth (lauth_username, lauth_password) VALUES(%s, %s)"
-                logger.info(AuthSQL)
-                mysql.insert(AuthSQL, username, MD5password)
-                UserSQL = "INSERT INTO User (username, email, time, avatar) VALUES(%s, %s, %s, %s)"
-                mysql.insert(UserSQL, username, email, get_today(), "/static/img/avatar/default.jpg")
-            except IntegrityError, e:
-                logger.error(e, exc_info=True)
-                res.update({'msg': 'username already exists, cannot be registered!', 'code': 10007})
-                logger.warn(res)
-                return res
-            except Exception,e:
-                logger.error(e, exc_info=True)
-                res.update(msg="server error", code=-1)
-                logger.error(res)
-                return res
-            else:
-                res.update({'code': 0, 'msg': 'Sign up success', "success": True})
-                logger.info(res)
-                return res
-
-        else:
-            res.update({'msg': 'Request action error', 'code': 10008})
-            logger.info(res)
-            return res
-
-    def delete(self):
-        #sql = "DELETE FROM user WHERE username=%s"
-        #logger.info({"User:delete:SQL": sql})
-        return {}
-
-    def user_update_profile(self, username, **data):
-        """Update user profile"""
-
-        res  = {"code": 0, "success": False, "msg": None}
-        #data = { k:v for k,v in kwargs.iteritems() if k in ("email", "cname", "avatar", "motto", "url", "weibo", "github", "gender") }
-        sql  = "UPDATE user_profile SET "
-        for k,v in data.iteritems():
-            sql += "%s='%s'," %(k, v)
-        sql = sql.strip(",") + " WHERE username=%s"
-        logger.info("username: %s, sql: %s" %(username, sql))
-        if username:
-            try:
-                self.mysql.update(sql, username)
-            except Exception,e:
-                logger.error(e, exc_info=True)
-                success = False
-            else:
-                success = True
-            res.update(success=success)
-        logger.info(res)
-        return res
-
-    def user_update_avatar(self, username, avatarUrl):
-        """Update user avatar"""
-        
-        res = {"code": 0, "success": False, "msg": None}
-        sql = "UPDATE user_profile SET avatar=%s WHERE username=%s"
-        if username:
-            try:
-                self.mysql.update(sql, avatarUrl, username)
-            except Exception,e:
-                logger.error(e, exc_info=True)
-            else:
-                res.update(success=True)
-
-        logger.info(res)
-        return res
+    def user_get_authors(self):
+        "获取作者列表"
+        admins = self.user_get_admins()["data"]
+        authors = []
+        return dict(code=0, msg=None, data=admins + authors)
 
     def user_update_cover(self, username, coverUrl):
         """Update user cover"""
-        
         res = {"code": 0, "success": False, "msg": None}
-        sql = "UPDATE user_profile SET cover=%s WHERE username=%s"
-        if username:
+        return res
+
+    def user_get_domainName(self, uid):
+        """根据uid获取域名"""
+        res = dict(code=1, msg=None)
+        if uid:
+            sql = "SELECT domain_name FROM user_profile WHERE uid=%s"
             try:
-                self.mysql.update(sql, coverUrl, username)
+                data = self.mysql_read.get(sql, uid)
             except Exception,e:
-                logger.error(e, exc_info=True)
+                logger.api.error(e, exc_info=True)
+                res.update(msg="get domain_name error", code=2)
             else:
-                res.update(success=True)
-
-        logger.info(res)
-        return res
-
-    def user_update_password(self, username, OldPassword, NewPassword):
-        """Update user password"""
-        
-        res = {"code": 0, "success": False, "msg": None}
-
-        if username in self.user_get_list().get("data", []) and md5(OldPassword) == self.user_get_lauth_passwd(username).get("data"):
-            sql = "UPDATE user_lauth SET lauth_password=%s WHERE lauth_username=%s"
-            if 5 <= len(NewPassword) < 30:
-                try:
-                    self.mysql.update(sql, md5(NewPassword), username)
-                except Exception,e:
-                    logger.error(e, exc_info=True)
+                if data and isinstance(data, dict) and data["domain_name"]:
+                    res.update(domain_name=data["domain_name"], code=0)
                 else:
-                    res.update(success=True)
-            else:
-                res.update(msg='password length requirement is greater than or equal to 5 less than 30', code= 300002)
+                    res.update(code=404)
         else:
-            res.update(msg="username does not exist or old passwords do not match", code=300002)
-
-        logger.info(res)
+            res.update(msg="Invaild uid", code=3)
+        
         return res
 
-    def user_get_statistics(self):
-        "统计数据查询"
-        pass
+    def user_getprofile_with_domainName(self, domainName):
+        """根据个性域名地址获取个人资料"""
+        res = {"code": 1, "msg": None}
+        sql = "SELECT * FROM user_profile WHERE domain_name=%s"
+        if domainName and user_pat.match(domainName) and sql_safestring_check(domainName):
+            try:
+                data = self.mysql_read.get(sql, domainName)
+            except Exception,e:
+                logger.api.error(e, exc_info=True)
+                res.update(msg="get user error", code=300009)
+            else:
+                if data and isinstance(data, dict):
+                    res.update(data=data, code=0)
+                else:
+                    res.update(code=404)
+        else:
+            res.update(msg="Invaild domain_name", code=1)
+        
+        return res
 
-class SysApiManager(BaseApiManager):
+class SysApiManager(ServiceBase):
 
     def get_sys_notice(self):
         "查询系统公告数据"
 
         res = {"code": 0, "msg": None, "data": None}
 
-        sql = "SELECT msg FROM sys_notice"
-        logger.info("query notice data with sql: " + sql)
+        sql = "SELECT id,msg FROM sys_notice"
+        logger.api.info("query notice data with sql: " + sql)
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e)
+            logger.api.error(e)
             res.update(msg="query notice data error", code=400001)
-        else:
-            res.update(data=[ _.get("msg") for _ in data if _.get("msg") ])
-
-        logger.info(res)
-        return res
-
-    def get_sys_config(self):
-        "查询系统配置"
-
-        res = {"code": 0, "msg": None, "data": None}
-        sql = "SELECT * FROM sys_config"
-        logger.info("query config data with sql: " + sql)
-        try:
-            data = self.mysql.get(sql)
-        except Exception,e:
-            logger.error(e)
-            res.update(msg="query config data error", code=400002)
         else:
             res.update(data=data)
 
-        logger.info(res)
+        
+        return res
+
+    def post_sys_notice(self, noticeMsg):
+        "添加系统公告"
+
+        res = {"code": 0, "msg": None, "success": False}
+        sql = "INSERT INTO sys_notice (msg) VALUES (%s)"
+        if not noticeMsg:
+            res.update(msg="msg is empty")
+        else:
+            try:
+                data = self.mysql_write.insert(sql, noticeMsg)
+            except Exception,e:
+                logger.api.error(e, exc_info=True)
+                res.update(msg="post a notice data error", code=400002)
+            else:
+                res.update(data=data, success=True)
+
+        
+        return res
+
+    def delete_sys_notice(self, noticeId):
+        """删除系统公告"""
+        res = {"code": 0, "msg": None, "success": False}
+        sql = "DELETE FROM sys_notice WHERE id=%d" %int(noticeId)
+        try:
+            self.mysql_write.execute(sql)
+        except Exception,e:
+            logger.api.error(e, exc_info=True)
+        else:
+            res.update(success=True)
+        
         return res
 
     def get_sys_friendlink(self):
@@ -778,17 +699,157 @@ class SysApiManager(BaseApiManager):
 
         res = {"code": 0, "msg": None, "data": None}
         sql = "SELECT id,link,title FROM sys_friendlink"
-        logger.info("query friend link data with sql: " + sql)
+        logger.api.info("query friend link data with sql: " + sql)
         try:
-            data = self.mysql.query(sql)
+            data = self.mysql_read.query(sql)
         except Exception,e:
-            logger.error(e)
+            logger.api.error(e)
             res.update(msg="query friend link data error", code=400003)
         else:
             res.update(data=data)
-
-        logger.info(res)
         return res
+
+    def get_sys_config(self):
+        """查询系统配置"""
+
+        res = {"code": 0, "msg": None, "data": None}
+        key = "EauDouce:SysConfig"
+        try:
+            data = self.redis.hgetall(key)
+        except:
+            res.update(msg="query config data error", code=400002)
+        else:
+            res.update(data=data)
+        return res
+
+    def update_sys_configure(self, **kwargs):
+        """更新配置"""
+
+        res = {"code": 0, "msg": None, "success": False}
+        key = "EauDouce:SysConfig"
+        try:
+            self.redis.hmset(key, kwargs)
+        except Exception,e:
+            logger.api.error(e, exc_info=True)
+            res.update(msg="update configure data error")
+        else:
+            res.update(success=True)
+        return res
+
+    def post_sys_friendlink(self, link, title):
+        "添加友情链接"
+
+        res = {"code": 0, "msg": None, "success": False}
+        sql = "INSERT INTO sys_friendlink (link,title) VALUES (%s,%s)"
+        if not link or not title:
+            res.update(msg="param error")
+        else:
+            try:
+                data = self.mysql_write.insert(sql, link, title)
+            except Exception,e:
+                logger.api.error(e, exc_info=True)
+                res.update(msg="post a friendlink data error", code=400005)
+            else:
+                res.update(success=True)
+
+        
+        return res
+
+    def delete_sys_friendlink(self, friendlinkId):
+        """删除友情链接"""
+        res = {"code": 0, "msg": None, "success": False}
+        sql = "DELETE FROM sys_friendlink WHERE id=%d" %int(friendlinkId)
+        try:
+            self.mysql_write.execute(sql)
+        except Exception,e:
+            logger.api.error(e, exc_info=True)
+        else:
+            res.update(success=True)
+        
+        return res
+
+    def post_apply_author(self, username):
+        """
+        申请成为作者
+        #username(str): 用户名
+        """
+
+        res = {"msg": None, "code": 0}
+        if username and username in self.user_get_list(True).get("data"):
+            if username in self.user_get_authors().get("data"):
+                res.update(msg="The current user is the author")
+            else:
+                sql = "INSERT INTO blog_applyauthor (username, req_time) VALUES(%s, %s)"
+                try:
+                    mid = self.mysql_write.insert(sql, username, get_today())
+                except IntegrityError,e:
+                    logger.api.debug(e)
+                    res.update(msg="The author has applied.", code=400006)
+                except Exception,e:
+                    logger.api.error(e, exc_info=True)
+                    res.update(msg="server error", code=400004)
+                else:
+                    res.update(success=True, data=mid)
+        else:
+            res.update(msg="No author username", code=400005)
+
+        return res
+
+    def get_apply_author(self, isActive=1):
+        """
+        查询有效的作者申请
+        #isActive(int), 查询是否有效的申请, 0无效, 1有效
+        """
+
+        res = {"code": 0, "msg": None, "data": None}
+        sql = "SELECT id,username,req_time FROM blog_applyauthor WHERE isActive=%s AND req_state='wait'"
+        try:
+            data = self.mysql_read.query(sql, isActive)
+        except Exception,e:
+            logger.api.error(e, exc_info=True)
+            res.update(msg="server error", code=400007)
+        else:
+            res.update(data=data)
+
+        
+        return res
+
+    def post_applet_users(self, **kwargs):
+        """记录微信小程序访问用户"""
+        data = dict(
+            avatarUrl=kwargs.get("avatarUrl"),
+            country=kwargs.get("country"),
+            province=kwargs.get("province"),
+            city=kwargs.get("city"),
+            gender=kwargs.get("gender"),
+            nickName=kwargs.get("nickName")
+        )
+        res = dict(success=False, msg=None)
+        key = "EauDouce:AppletUsers"
+        if data:
+            rid = self.redis.sadd(key, json.dumps(data))
+            if rid == 1:
+                res.update(success=True)
+            else:
+                res.update(msg="Not added. May already exist.")
+        else:
+            res.update(msg="param error")
+        
+        return res
+
+    def get_applet_users(self):
+        """查询微信小程序访问用户"""
+        res = dict(data=[], msg=None)
+        key = "EauDouce:AppletUsers"
+        data = self.redis.smembers(key)
+        if isinstance(data, set):
+            data = list(data)
+        res.update(data=[json.loads(i) for i in data if i])
+        return res
+
+    def sys_get_clicklog(self):
+        sql = "SELECT id,url,agent,method,ip,status_code,referer,isp,browserType,browserDevice,browserOs,browserFamily FROM blog_clicklog ORDER BY id DESC LIMIT 100"
+        return self.mysql_read.query(sql)
 
 class ApiManager(BlogApiManager, MiscApiManager, UserApiManager, SysApiManager):
     pass

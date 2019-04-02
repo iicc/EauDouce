@@ -10,6 +10,7 @@
   background:url(/static/img/gototop.png);
 }
 
+/*透明*/
 .TransparentBar {
 	width: 180px; 
 	height: 260px; 
@@ -21,8 +22,9 @@
 
 .TransparentBar p { position:relative; } /*实现IE文字不透明*/
 
+/*
 blockquote {
-    color:#888;
+  color:#888;
   background-color: #eae6f3;
   border-left: 1em solid #5236a0;
   padding: 1em 1.5em 1em 1.5em;
@@ -41,7 +43,7 @@ blockquote:before {
   line-height: 0.1em;
 }
 blockquote:after {
-   color: #392570;
+  color: #392570;
   content: "\201D";
   font-size: 5em;
   position:absolute;
@@ -49,3 +51,129 @@ blockquote:after {
   bottom: 0em;
   line-height: 0.1em;
 }
+*/
+/*like and reward css*/
+/*按钮*/
+.thumbs_content{
+    width: 291px;
+    margin: 0 auto;
+    display: block
+}
+.thumbs_content a:hover, .thumbs_content a:visited, .thumbs_content a:active, .thumbs_content a:link {
+  text-decoration:none
+}
+.thumbs_button{
+    float: left;
+    width:145px;
+    text-align: center;
+    margin:5px auto;
+    height: 45px;
+    line-height: 45px;
+    background-color:#444;
+    color:#fbfbfb;
+    text-align:center;
+    text-decoration:none;
+    font-weight:bold;
+    font-size:16px;
+    transition: all 0.3s;
+    border-radius: 0 0 0 25px;
+    -webkit-border-radius: 0 0 0 25px;
+    -moz-border-radius: 0 0 0 25px;
+    -o-border-radius: 0 0 0 25px;
+}
+.reward_button{
+    float: left;
+    width:145px;
+    text-align: center;
+    margin:5px auto;
+    height: 45px;
+    line-height: 45px;
+    background-color:#cd4450;
+    color:#fbfbfb;
+    text-align:center;
+    text-decoration:none;
+    font-weight:bold;
+    font-size:16px;
+    border-left:1px solid #fbfbfb;
+    transition: all 0.3s;
+    border-radius: 0 25px 0 0;
+    -webkit-border-radius: 0 25px 0 0;
+    -moz-border-radius: 0 25px 0 0;
+    -o-border-radius: 0 25px 0 0;
+}
+.thumbs_button:hover, .reward_button:hover{
+    opacity:0.8;
+    font-size:18px;
+}
+.clear{
+    clear:both;
+} 
+/*弹窗*/
+.hide_box{z-index:999;filter:alpha(opacity=50);background:#666;opacity: 0.5;-moz-opacity: 0.5;left:0;top:0;height:99%;width:100%;position:fixed;display:none;}
+.shang_box{width:540px;height:540px;padding:10px;background-color:#fff;border-radius:10px;position:fixed;z-index:1000;left:50%;top:50%;margin-left:-280px;margin-top:-280px;border:1px dotted #dedede;display:none;}
+.shang_box img{border:none;border-width:0;}
+.dashang{display:block;width:100px;margin:5px auto;height:25px;line-height:25px;padding:10px;background-color:#E74851;color:#fff;text-align:center;text-decoration:none;border-radius:10px;font-weight:bold;font-size:16px;transition: all 0.3s;}
+.dashang:hover{opacity:0.8;padding:15px;font-size:18px;}
+.shang_close{float:right;display:inline-block;}
+.shang_logo{display:block;text-align:center;margin:20px auto;}
+.shang_tit{width: 100%;height: 75px;text-align: center;line-height: 66px;color: #a3a3a3;font-size: 16px;background: url('/static/img/cy-reward-title-bg.jpg');font-family: 'Microsoft YaHei';margin-top: 7px;margin-right:2px;}
+.shang_tit p{color:#a3a3a3;text-align:center;font-size:16px;}
+.shang_payimg{width:140px;padding:10px;border:6px solid #EA5F00;margin:0 auto;border-radius:3px;height:140px;}
+.shang_payimg img{display:block;text-align:center;width:140px;}
+.pay_explain{text-align:center;margin:10px auto;font-size:12px;color:#545454;}
+.radiobox{width: 16px;height: 16px;background: url('/static/img/radio2.jpg');display: block;float: left;margin-top: 5px;margin-right: 14px;}
+.checked .radiobox{background:url('/static/img/radio1.jpg');}
+.shang_payselect{text-align:center;margin:0 auto;margin-top:40px;cursor:pointer;height:60px;width:280px;}
+.shang_payselect .pay_item{display:inline-block;margin-right:10px;float:left;}
+.shang_info{clear:both;}
+.shang_info p,.shang_info a{color:#C3C3C3;text-align:center;font-size:12px;text-decoration:none;line-height:2em;}
+
+
+/* 带边框透明按钮 */
+.btn-outline {
+    color: inherit;
+    background-color: transparent;
+    -webkit-transition: all .5s;
+    transition: all .5s;
+}
+
+.btn-primary.btn-outline {
+    color: #58666e !important;
+}
+
+.btn-success.btn-outline {
+    color: #58666e !important;
+}
+
+.btn-info.btn-outline {
+    color: #58666e !important;
+}
+
+.btn-warning.btn-outline {
+    color: #58666e !important;
+}
+
+.btn-danger.btn-outline {
+    color: #58666e !important;
+}
+
+.btn-primary.btn-outline:hover,
+.btn-success.btn-outline:hover,
+.btn-info.btn-outline:hover,
+.btn-warning.btn-outline:hover,
+.btn-danger.btn-outline:hover {
+    color: #fff;
+}
+
+/* tagscloud */
+#tagscloud{width:350px;height:260px;position:relative;font-size:12px;color:#333;margin:0px auto 0;text-align:left;}
+#tagscloud a{position:absolute;top:0px;left:0px;color:#333;font-family:Arial;text-decoration:none;margin:0 10px 15px 0;line-height:18px;text-align:center;font-size:12px;padding:1px 5px;display:inline-block;border-radius:3px;}
+#tagscloud a.tagc1{background:#666;color:#fff;}
+#tagscloud a.tagc2{background:#F16E50;color:#fff;}
+#tagscloud a.tagc3{background:#00BB00;color:#fff;}
+#tagscloud a.tagc4{background:#8600FF;color:#fff;}
+#tagscloud a.tagc5{background:#006633;color:#fff;}
+#tagscloud a:hover{color:#fff;background:#0099ff;}
+
+/*屏蔽畅言广告*/
+#feedAv{ margin-top: -250px!important;transform: scale(0);}

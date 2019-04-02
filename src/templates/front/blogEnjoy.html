@@ -1,0 +1,33 @@
+{% extends "base/front_micro.html" %}
+
+{% block title %}{{ data['title'] }}{% endblock %}
+
+{% block head %}
+    <style type="text/css">
+        fieldset{padding:.35em .625em .75em;margin:0 2px;border:1px solid #009;border-radius:5px;}
+        legend{padding:.5em;border:0;width:auto}
+        img{max-width: 100%}
+        .funcarea{ padding:.35em .625em .75em;margin:0 2px;border:1px solid #009;border-radius:5px; height: auto; }
+        blockquote {
+            display: block;
+            border-left: 8px solid #d0e5f2;
+            padding: 5px 10px;
+            margin: 10px 0;
+            line-height: 1.4;
+            font-size: 100%;
+            background-color: #f1f1f1;
+        }
+    </style>
+    {{ emit_tep('blog_show_header') }}
+{% endblock %}
+
+{% block container %}
+    <p>
+        <div class="alert alert-success alert-dismissible" role="alert">
+            <b>温馨提示</b>：您正在访问纯享版文章，<a href="{{ url_for('front.blogShow', bid=blogId) }}">点击此处</a>返回文章详情页！</a><br>
+            <b>文章标题</b>：{{ data.title }}<br>
+            <b>更新时间</b>：{{ data.update_time or data.create_time }}
+        </div>
+    </p>
+    {{ data['content'] | safe }}
+{% endblock %}
